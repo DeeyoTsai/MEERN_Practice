@@ -1,5 +1,7 @@
 const { exec } = require("child_process");
 const { route } = require("./auth");
+const { course } = require("../models");
+const { log } = require("console");
 
 const router = require("express").Router();
 const Course = require("../models").course;
@@ -14,11 +16,24 @@ router.use((req, res, next) => {
 router.get("/", async (req, res) => {
   try {
     // .populate()在mongoDB中找到跟"instructor"有關的資料，顯示在foundCourses
-    // 第二個參數為要顯式的資料有哪些=>["username","email","password"]
+    // 第二個參數為要顯示的資料有哪些=>["username","email","password"]
     let foundCourses = await Course.find({})
       .populate("instructor", ["username", "email"])
       .exec();
     return res.send(foundCourses);
+  } catch (e) {
+    return res.status(500).send(e);
+  }
+});
+
+// 用課程名稱尋找課程
+router.get("/findByName/:name", async (req, res) => {
+  let { name } = req.params;
+  try {
+    let courseFound = await Course.find({ title: name })
+      .populate("instructor", ["username", "email"])
+      .exec();
+    return res.send(courseFound);
   } catch (e) {
     return res.status(500).send(e);
   }
@@ -35,6 +50,24 @@ router.get("/:_id", async (req, res) => {
   } catch (e) {
     return res.status(500).send(e);
   }
+});
+
+// 用講師id來尋找課程
+router.get("/instructor/:_instructor_id", async (req, res) => {
+  let { _instructor_id } = req.params;
+  let courseFound = await Course.find({ instructor: _instructor_id })
+    .populate("instructor", ["username", "email"])
+    .exec();
+  return res.send(courseFound); //09:04
+});
+
+// 用學生id尋找註冊的課程
+router.get("/student/:_student_id", async (req, res) => {
+  let { _student_id } = req.params;
+  let courseFound = await Course.find({ students: _student_id })
+    .populate("instructor", ["username", "email"])
+    .exec();
+  return res.send(courseFound);
 });
 
 // 新增課程
@@ -66,6 +99,20 @@ router.post("/", async (req, res) => {
   } catch (e) {
     console.log(e);
     return res.status(500).send("Can not publish a class");
+  }
+});
+
+// 學生透過課程id註冊課程
+router.post("/enroll/:_id", async (req, res) => {
+  let { _id } = req.params;
+  try {
+    let foundCourse = await Course.findOne({ _id }).exec();
+    // 從jwt取得uesr_id
+    foundCourse.students.push(req.user._id);
+    await foundCourse.save();
+    return res.send("註冊完成");
+  } catch (e) {
+    console.log(e);
   }
 });
 
